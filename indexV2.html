@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PC Builder: Laboratorio de Compatibilidad</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ===== Tokens de diseño ===== */
+:root{
+  --bg:#0e131b; --panel:#151c27; --panel-2:#1b2432; --line:#2a3548;
+  --text:#e6ecf5; --muted:#8d9bb2;
+  --accent:#38d4ff;   /* azul neón: acción / selección */
+  --ok:#2fe0a1;       /* esmeralda: compatible */
+  --warn:#ffb03a;     /* ámbar: avisos */
+  --err:#ff5b3a;      /* rojo-naranja: incompatible */
+}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',system-ui,sans-serif;
+  background-image:radial-gradient(circle at 1px 1px,#1d2735 1px,transparent 0);background-size:26px 26px;min-height:100vh}
+h1,h2,h3,h4,h5,.brand{font-family:'Chakra Petch','Segoe UI',sans-serif;letter-spacing:.2px}
+.navbar{background:rgba(14,19,27,.92);border-bottom:1px solid var(--line)}
+.brand{font-weight:700;color:var(--text)} .brand i{color:var(--accent)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1.25rem}
+.form-select{background-color:var(--panel-2);border-color:var(--line);color:var(--text)}
+.form-select:focus{border-color:var(--accent);box-shadow:0 0 0 .2rem rgba(56,212,255,.2)}
+.slot{border-left:3px solid var(--line);padding-left:.9rem;margin-bottom:1.1rem;transition:border-color .2s}
+.slot.filled{border-left-color:var(--accent)}
+.slot label{font-weight:500;margin-bottom:.35rem}
+.slot .spec{font-size:.82rem;color:var(--muted);min-height:1.2rem;margin-top:.3rem}
+.btn-verify{background:var(--accent);color:#04202b;font-family:'Chakra Petch',sans-serif;font-weight:700;border:0}
+.btn-verify:hover{background:#7fe4ff;color:#04202b}
+/* Sello de resultado: elemento principal de la pantalla */
+.seal{display:flex;gap:1.1rem;align-items:center;border-radius:10px;padding:1.2rem;border:1px solid}
+.seal .icon{font-size:3.4rem;line-height:1}
+.seal.ok{border-color:var(--ok);background:rgba(47,224,161,.08)} .seal.ok .icon,.seal.ok h3{color:var(--ok)}
+.seal.warn{border-color:var(--warn);background:rgba(255,176,58,.08)} .seal.warn .icon,.seal.warn h3{color:var(--warn)}
+.seal.err{border-color:var(--err);background:rgba(255,91,58,.09)} .seal.err .icon,.seal.err h3{color:var(--err)}
+.check{display:flex;gap:.8rem;padding:.8rem 0;border-bottom:1px solid var(--line)}
+.check:last-child{border-bottom:0}
+.check i{font-size:1.25rem;margin-top:.1rem}
+.check.ok i{color:var(--ok)} .check.warn i{color:var(--warn)} .check.err i{color:var(--err)} .check.skip i{color:var(--muted)}
+.check .t{font-weight:500} .check .d{color:var(--muted);font-size:.9rem}
+.rec{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;overflow:hidden;height:100%}
+.rec .vis{background:#101722;padding:.8rem;color:var(--ok);display:flex;justify-content:center;border-bottom:1px solid var(--line)}
+.rec .vis svg{width:100%;max-width:200px;height:auto}
+.rec .body{padding:1rem}
+.rec .swap{font-size:.85rem;color:var(--muted)} .rec .swap s{color:var(--err)}
+.rec .why{font-size:.9rem;border-left:3px solid var(--ok);padding-left:.7rem;margin:.7rem 0}
+.progress{background:var(--panel-2);height:.7rem}
+.accordion{--bs-accordion-bg:var(--panel);--bs-accordion-border-color:var(--line);--bs-accordion-btn-bg:var(--panel);--bs-accordion-active-bg:var(--panel-2);--bs-accordion-active-color:var(--accent)}
+.accordion-button:focus{box-shadow:0 0 0 .2rem rgba(56,212,255,.2)}
+a{color:var(--accent)}
+/* Contenedores de imagen: dibujo SVG por defecto, foto real cuando carga */
+.pic{background:#101722;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--accent);position:relative}
+.pic img{width:100%;height:100%;object-fit:cover}
+.pic svg{width:70%;height:auto;opacity:.8}
+.pic.thumb{width:64px;height:64px;flex:none}
+.pic.wide{width:100%;aspect-ratio:16/10}
+.pic.wide img{object-fit:contain;background:#fff}
+.credit-badge{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.65);color:#cfd8e6;font-size:.65rem;padding:1px 6px;border-radius:4px;text-decoration:none}
+.slotrow{display:flex;gap:.7rem;align-items:center;margin-top:.4rem}
+.slotrow .spec{margin-top:0}
+.table{--bs-table-bg:transparent;--bs-table-border-color:var(--line)}
+.empty{color:var(--muted);text-align:center;padding:2.5rem 1rem}
+.empty i{font-size:2.6rem;color:var(--line)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<nav class="navbar sticky-top">
+  <div class="container">
+    <span class="navbar-brand brand"><i class="bi bi-cpu-fill me-2"></i>PC Builder <span class="text-secondary fw-normal d-none d-sm-inline">Laboratorio de Compatibilidad</span></span>
+    <a class="btn btn-sm btn-outline-info" href="#teoria"><i class="bi bi-book me-1"></i>Conceptos</a>
+  </div>
+</nav>
+
+<main class="container py-4">
+  <header class="mb-4">
+    <h1 class="h2">Arma tu PC y comprueba si las piezas encajan</h1>
+    <p class="text-secondary mb-0" style="max-width:62ch">Elige los componentes, pulsa <strong>Verificar compatibilidad</strong> y lee por qué funcionan juntos (o por qué no). Si hay un conflicto, el laboratorio propone una pieza que sí encaja.</p>
+  </header>
+
+  <div class="row g-4">
+    <!-- ===== Selección de componentes ===== -->
+    <section class="col-lg-5">
+      <div class="panel">
+        <h2 class="h5 mb-3">Tus componentes</h2>
+        <div id="slots"></div>
+        <div class="d-grid gap-2">
+          <button id="btnVerify" class="btn btn-verify btn-lg"><i class="bi bi-shield-check me-2"></i>Verificar compatibilidad</button>
+          <div class="input-group input-group-sm">
+            <select id="demoSel" class="form-select" aria-label="Ejemplos de configuraciones"></select>
+            <button id="btnDemo" class="btn btn-outline-info">Cargar ejemplo</button>
+          </div>
+          <div id="demoDesc" class="small text-secondary"></div>
+          <button id="btnClear" class="btn btn-link text-secondary btn-sm">Limpiar selección</button>
+        </div>
+        <p class="small text-secondary mt-2 mb-0">Obligatorios: placa madre, procesador y RAM. Fuente, gabinete y gráfica son opcionales y añaden más pruebas.</p>
+      </div>
+    </section>
+
+    <!-- ===== Resultados ===== -->
+    <section class="col-lg-7" aria-live="polite">
+      <div id="results" class="panel">
+        <div class="empty"><i class="bi bi-motherboard"></i><p class="mt-2 mb-0">Selecciona al menos placa madre, procesador y RAM, y pulsa verificar.</p></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== Teoría ===== -->
+  <section id="teoria" class="mt-5">
+    <h2 class="h4 mb-3">Conceptos clave</h2>
+    <div class="accordion" id="acc">
+      <div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c1">Socket del procesador</button></h3>
+        <div id="c1" class="accordion-collapse collapse" data-bs-parent="#acc"><div class="accordion-body">El socket es la base física y eléctrica donde se instala el CPU. Cada familia usa una distribución de pines distinta (LGA 1700, LGA 1851, AM4, AM5), por eso un procesador solo funciona en su socket exacto.</div></div></div>
+      <div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c2">DDR4 vs DDR5</button></h3>
+        <div id="c2" class="accordion-collapse collapse" data-bs-parent="#acc"><div class="accordion-body">Los módulos DDR4 y DDR5 tienen la muesca en posiciones diferentes y no encajan en la ranura contraria. Además el controlador de memoria del CPU y la placa deben soportar la generación. Los módulos SO-DIMM son más cortos y se usan en portátiles, no en placas de escritorio.</div></div></div>
+      <div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c3">Factor de forma</button></h3>
+        <div id="c3" class="accordion-collapse collapse" data-bs-parent="#acc"><div class="accordion-body">ATX (305×244 mm), Micro-ATX (244×244 mm) y Mini-ITX (170×170 mm). Un gabinete admite su tamaño máximo y los menores, nunca uno mayor. También la fuente tiene formato propio (ATX o SFX).</div></div></div>
+      <div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#c4">Potencia y conectores</button></h3>
+        <div id="c4" class="accordion-collapse collapse" data-bs-parent="#acc"><div class="accordion-body">La fuente debe cubrir el consumo máximo (CPU + GPU + resto) con margen de seguridad, normalmente 30 % extra. Además necesita los conectores correctos: 24 pines ATX para la placa, EPS de 8 pines (a veces dos) para el CPU y PCIe o 12VHPWR para la gráfica.</div></div></div>
+    </div>
+  </section>
+</main>
+
+<footer class="text-center text-secondary small py-4">Herramienta educativa. Los datos son simplificados; confirma siempre con la ficha oficial del fabricante.<br>Las fotos se cargan desde Wikimedia Commons y pueden ser de referencia (misma familia o tipo de pieza, no siempre el modelo exacto). Sin conexión se muestra un dibujo.</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* =========================================================
+   1. BASE DE DATOS (JSON embebido, sin backend)
+   tier: gama 1 (básica) a 3 (alta), se usa para sugerir la alternativa más parecida.
+   ========================================================= */
+const DB = {
+  mb: [
+    {id:'mb1', name:'ASUS TUF Gaming B650-Plus WiFi', socket:'AM5', ram:'DDR5', form:'ATX', eps:2, tier:2},
+    {id:'mb2', name:'MSI MAG B650M Mortar WiFi', socket:'AM5', ram:'DDR5', form:'mATX', eps:2, tier:2},
+    {id:'mb3', name:'Gigabyte B550 AORUS Elite V2', socket:'AM4', ram:'DDR4', form:'ATX', eps:1, tier:2, needsBios:[]},
+    {id:'mb4', name:'ASRock B450M Pro4', socket:'AM4', ram:'DDR4', form:'mATX', eps:1, tier:1, needsBios:['zen3']},
+    {id:'mb5', name:'MSI PRO Z790-P WiFi (DDR5)', socket:'LGA 1700', ram:'DDR5', form:'ATX', eps:2, tier:3},
+    {id:'mb6', name:'ASUS Prime B760M-A (DDR4)', socket:'LGA 1700', ram:'DDR4', form:'mATX', eps:1, tier:1},
+    {id:'mb7', name:'Gigabyte B760I AORUS Pro (DDR5)', socket:'LGA 1700', ram:'DDR5', form:'ITX', eps:1, tier:2},
+    {id:'mb8', name:'ASUS ROG Strix Z890-E Gaming', socket:'LGA 1851', ram:'DDR5', form:'ATX', eps:2, tier:3}
+  ],
+  cpu: [
+    {id:'c1', name:'AMD Ryzen 7 7800X3D', socket:'AM5', ram:['DDR5'], tdp:120, tier:3},
+    {id:'c2', name:'AMD Ryzen 5 7600', socket:'AM5', ram:['DDR5'], tdp:90, tier:1},
+    {id:'c3', name:'AMD Ryzen 7 5800X3D', socket:'AM4', ram:['DDR4'], tdp:105, tier:3, bios:'zen3'},
+    {id:'c4', name:'AMD Ryzen 5 5600', socket:'AM4', ram:['DDR4'], tdp:90, tier:1, bios:'zen3'},
+    {id:'c5', name:'Intel Core i5-13600K', socket:'LGA 1700', ram:['DDR4','DDR5'], tdp:181, tier:2},
+    {id:'c6', name:'Intel Core i7-14700K', socket:'LGA 1700', ram:['DDR4','DDR5'], tdp:253, tier:3},
+    {id:'c7', name:'Intel Core Ultra 7 265K', socket:'LGA 1851', ram:['DDR5'], tdp:250, tier:3}
+  ],
+  ram: [
+    {id:'r1', name:'Corsair Vengeance LPX 16 GB DDR4-3200', type:'DDR4', dimm:'DIMM', tier:1},
+    {id:'r2', name:'Kingston Fury Beast 32 GB DDR4-3600', type:'DDR4', dimm:'DIMM', tier:2},
+    {id:'r3', name:'Crucial 16 GB DDR5-5600', type:'DDR5', dimm:'DIMM', tier:1},
+    {id:'r4', name:'G.Skill Trident Z5 32 GB DDR5-6000', type:'DDR5', dimm:'DIMM', tier:3},
+    {id:'r5', name:'Crucial 16 GB DDR4 SO-DIMM (portátil)', type:'DDR4', dimm:'SO-DIMM', tier:1}
+  ],
+  psu: [
+    {id:'p1', name:'Corsair CV450 450 W 80+ Bronze', watts:450, eps:1, pcie5:false, form:'ATX', tier:1},
+    {id:'p2', name:'EVGA 550 BR 550 W 80+ Bronze', watts:550, eps:1, pcie5:false, form:'ATX', tier:1},
+    {id:'p3', name:'Seasonic Focus GX-650 650 W 80+ Gold', watts:650, eps:2, pcie5:false, form:'ATX', tier:2},
+    {id:'p4', name:'MSI MPG A850G PCIe5 850 W 80+ Gold', watts:850, eps:2, pcie5:true, form:'ATX', tier:3},
+    {id:'p5', name:'Corsair SF750 750 W 80+ Platinum (SFX)', watts:750, eps:2, pcie5:true, form:'SFX', tier:3}
+  ],
+  case: [
+    {id:'k1', name:'Lian Li Lancool 216 (ATX)', size:'ATX', psu:['ATX'], tier:2},
+    {id:'k2', name:'Fractal Pop Mini Air (Micro-ATX)', size:'mATX', psu:['ATX'], tier:1},
+    {id:'k3', name:'Cooler Master NR200 (Mini-ITX)', size:'ITX', psu:['SFX'], tier:2}
+  ],
+  gpu: [
+    {id:'g1', name:'NVIDIA RTX 4060 (115 W)', tdp:115, tier:1},
+    {id:'g2', name:'NVIDIA RTX 4070 Super (220 W)', tdp:220, tier:2},
+    {id:'g3', name:'NVIDIA RTX 4080 Super (320 W)', tdp:320, tier:3}
+  ]
+};
+
+const CAT = {mb:'Tarjeta madre', cpu:'Procesador', ram:'Memoria RAM', psu:'Fuente de poder', case:'Gabinete', gpu:'Tarjeta gráfica'};
+const REQUIRED = ['mb','cpu','ram'];
+const ORDER = ['mb','cpu','ram','psu','case','gpu'];
+const ICON = {mb:'motherboard', cpu:'cpu', ram:'memory', psu:'plug', case:'pc', gpu:'gpu-card'};
+const FORM_NAME = {ATX:'ATX', mATX:'Micro-ATX', ITX:'Mini-ITX'};
+const FITS = {ATX:['ATX','mATX','ITX'], mATX:['mATX','ITX'], ITX:['ITX']}; // placas que admite cada gabinete
+const SPEC = {
+  mb:i=>`${i.socket} · ${i.ram} · ${FORM_NAME[i.form]} · EPS ${i.eps}×8 pines`,
+  cpu:i=>`${i.socket} · acepta ${i.ram.join('/')} · ~${i.tdp} W máx.`,
+  ram:i=>`${i.type} · ${i.dimm}`,
+  psu:i=>`${i.watts} W · ${i.form} · EPS ${i.eps}×8 pines${i.pcie5?' · 12VHPWR':''}`,
+  case:i=>`Admite hasta ${FORM_NAME[i.size]} · fuente ${i.psu.join('/')}`,
+  gpu:i=>`Consumo ~${i.tdp} W`
+};
+
+/* =========================================================
+   2. MOTOR DE REGLAS
+   Devuelve una lista de pruebas {id,title,status,text,blames}.
+   status: ok | warn | err | skip. blames: categorías que pueden cambiarse para corregir.
+   ========================================================= */
+function runChecks(s){
+  const out = [];
+  const add = (id,title,status,text,blames=[]) => out.push({id,title,status,text,blames});
+  const {mb,cpu,ram,psu,case:cs,gpu} = s;
+
+  // Socket
+  if(mb&&cpu){
+    cpu.socket===mb.socket
+      ? add('socket','Socket CPU ↔ placa','ok',`El procesador usa socket ${cpu.socket} y la placa también: los pines y el soporte de retención coinciden físicamente.`)
+      : add('socket','Socket CPU ↔ placa','err',`Incompatible: intentas instalar un CPU ${cpu.socket} en una placa con socket ${mb.socket}. La distribución de pines es distinta y no encaja.`,['cpu','mb']);
+  } else add('socket','Socket CPU ↔ placa','skip','Elige placa madre y procesador.');
+
+  // RAM vs placa
+  if(mb&&ram){
+    ram.type===mb.ram
+      ? add('ramtype','Generación de RAM ↔ placa','ok',`La placa tiene ranuras ${mb.ram} y el módulo es ${ram.type}: la muesca de seguridad coincide.`)
+      : add('ramtype','Generación de RAM ↔ placa','err',`Incompatible: la placa solo admite ${mb.ram} y elegiste memoria ${ram.type}. Las muescas están en posiciones distintas.`,['ram','mb']);
+  } else add('ramtype','Generación de RAM ↔ placa','skip','Elige placa madre y RAM.');
+
+  // RAM vs CPU (controlador de memoria integrado)
+  if(cpu&&ram){
+    cpu.ram.includes(ram.type)
+      ? add('ramcpu','Controlador de memoria del CPU','ok',`El controlador de memoria del ${cpu.name} soporta ${ram.type}.`)
+      : add('ramcpu','Controlador de memoria del CPU','err',`Incompatible: el ${cpu.name} solo soporta ${cpu.ram.join('/')} y la RAM elegida es ${ram.type}.`,['ram','cpu']);
+  }
+
+  // Formato del módulo
+  if(ram&&mb){
+    ram.dimm==='DIMM'
+      ? add('dimm','Formato del módulo','ok','Es un módulo DIMM de tamaño completo, el estándar de las placas de escritorio.')
+      : add('dimm','Formato del módulo','err','Incompatible: los SO-DIMM son módulos cortos para portátiles y no encajan en ranuras DIMM de escritorio.',['ram']);
+  }
+
+  // Factor de forma placa ↔ gabinete
+  if(cs){
+    if(mb){
+      FITS[cs.size].includes(mb.form)
+        ? add('form','Factor de forma placa ↔ gabinete','ok',`La placa ${FORM_NAME[mb.form]} cabe en un gabinete que admite hasta ${FORM_NAME[cs.size]}.`)
+        : add('form','Factor de forma placa ↔ gabinete','err',`Incompatible: la placa es ${FORM_NAME[mb.form]} pero el gabinete solo admite hasta ${FORM_NAME[cs.size]}; la placa es demasiado grande.`,['case','mb']);
+    }
+    if(psu){
+      cs.psu.includes(psu.form)
+        ? add('psuform','Formato de la fuente ↔ gabinete','ok',`El gabinete admite fuentes ${psu.form}.`)
+        : add('psuform','Formato de la fuente ↔ gabinete','err',`Incompatible: el gabinete usa fuentes ${cs.psu.join('/')} y la fuente elegida es ${psu.form}.`,['psu','case']);
+    }
+  }
+
+  // Potencia estimada
+  const peak = cpu ? cpu.tdp + (gpu?gpu.tdp:0) + 80 : 0; // 80 W = placa, RAM, SSD, ventiladores
+  const need = Math.ceil(peak*1.3/50)*50;                 // recomendado con 30 % de margen
+  if(cpu&&psu){
+    const txt = `Consumo pico estimado: ${peak} W (CPU ${cpu.tdp} W${gpu?` + GPU ${gpu.tdp} W`:''} + 80 W resto). Recomendado con margen: ${need} W. Tu fuente: ${psu.watts} W.`;
+    psu.watts < peak*1.1 ? add('power','Potencia de la fuente','err','Insuficiente. '+txt,['psu'])
+    : psu.watts < need   ? add('power','Potencia de la fuente','warn','Justa. '+txt)
+    :                      add('power','Potencia de la fuente','ok','Suficiente con margen. '+txt);
+  }
+
+  // Conectores
+  if(mb&&psu){
+    psu.eps>=mb.eps
+      ? add('eps','Conectores de alimentación del CPU','ok',`La placa pide ${mb.eps} conector(es) EPS de 8 pines y la fuente ofrece ${psu.eps}.`)
+      : add('eps','Conectores de alimentación del CPU','err',`Incompatible: la placa necesita ${mb.eps} conectores EPS de 8 pines para el CPU y la fuente solo trae ${psu.eps}.`,['psu','mb']);
+  }
+  if(gpu&&psu&&gpu.tdp>=300){
+    psu.pcie5
+      ? add('pcie5','Conector de la gráfica','ok','La fuente incluye el conector 12VHPWR que usa esta gráfica.')
+      : add('pcie5','Conector de la gráfica','warn','Esta gráfica usa 12VHPWR; tu fuente no lo trae y necesitarás un adaptador.');
+  }
+
+  // Aviso de BIOS
+  if(mb&&cpu&&mb.socket===cpu.socket&&cpu.bios&&(mb.needsBios||[]).includes(cpu.bios)){
+    add('bios','Versión de BIOS','warn','El socket coincide, pero esta placa suele venir con una BIOS antigua que debe actualizarse para reconocer este procesador.');
+  }
+  return {checks:out, peak, need};
+}
+const errIds = s => runChecks(s).checks.filter(c=>c.status==='err').map(c=>c.id);
+
+/* =========================================================
+   3. RECOMENDACIONES
+   Para cada error se prueba cambiar cada pieza implicada por todas las de su categoría.
+   Se acepta la que corrige ese error sin crear errores nuevos y se elige la de gama más parecida.
+   ========================================================= */
+function recommend(sel, checks){
+  const current = errIds(sel), recs = [], seen = new Set();
+  checks.filter(c=>c.status==='err').forEach(chk=>{
+    chk.blames.filter(cat=>sel[cat]).forEach(cat=>{
+      const allowed = current.filter(id=>id!==chk.id);
+      const cands = DB[cat].filter(it=>{
+        if(it.id===sel[cat].id) return false;
+        const ids = errIds({...sel,[cat]:it});
+        return !ids.includes(chk.id) && ids.every(i=>allowed.includes(i));
+      }).sort((a,b)=>Math.abs(a.tier-sel[cat].tier)-Math.abs(b.tier-sel[cat].tier));
+      const best = cands[0], key = cat+(best&&best.id);
+      if(best && !seen.has(key)){
+        seen.add(key);
+        const after = runChecks({...sel,[cat]:best}).checks.find(c=>c.id===chk.id);
+        recs.push({cat, from:sel[cat], to:best, fixes:chk.title, why:after?after.text:''});
+      }
+    });
+  });
+  return recs;
+}
+
+/* =========================================================
+   4. ILUSTRACIONES SVG (sin imágenes externas: nunca se rompen)
+   ========================================================= */
+function visual(cat){
+  const s = 'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"';
+  const art = {
+    cpu:`<rect x="60" y="25" width="80" height="80" rx="6" ${s}/><rect x="80" y="45" width="40" height="40" rx="3" ${s}/>`+
+        [70,85,100,115,130].map(x=>`<path d="M${x} 25v-12M${x} 105v12" ${s}/>`).join('')+
+        [40,55,70,85,100].map(y=>`<path d="M60 ${y}h-12M140 ${y}h12" ${s}/>`).join(''),
+    mb:`<rect x="30" y="10" width="140" height="110" rx="6" ${s}/><rect x="50" y="28" width="38" height="38" rx="3" ${s}/>`+
+       `<path d="M110 22v52M122 22v52M134 22v52M146 22v52" ${s}/><path d="M50 92h80M50 106h60" ${s}/>`,
+    ram:`<rect x="20" y="40" width="160" height="42" rx="4" ${s}/>`+[40,70,100,130].map(x=>`<rect x="${x}" y="50" width="20" height="22" rx="2" ${s}/>`).join('')+
+        `<path d="M30 82v10M45 82v10M60 82v10M75 82v10M90 82v10M110 82v10M125 82v10M140 82v10M155 82v10" ${s}/>`,
+    psu:`<rect x="30" y="25" width="140" height="80" rx="6" ${s}/><circle cx="85" cy="65" r="26" ${s}/><circle cx="85" cy="65" r="6" ${s}/>`+
+        `<path d="M130 50h25M130 65h25M130 80h25" ${s}/>`,
+    case:`<rect x="55" y="8" width="90" height="114" rx="6" ${s}/><path d="M55 30h90M70 18h20" ${s}/><circle cx="100" cy="70" r="16" ${s}/><path d="M70 105h60" ${s}/>`,
+    gpu:`<rect x="20" y="30" width="160" height="60" rx="6" ${s}/><circle cx="70" cy="60" r="20" ${s}/><circle cx="130" cy="60" r="20" ${s}/><path d="M30 90v14h60" ${s}/>`
+  };
+  return `<svg viewBox="0 0 200 130" role="img" aria-label="${CAT[cat]}">${art[cat]}</svg>`;
+}
+
+/* =========================================================
+   5. INTERFAZ
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const sel = {};
+
+function buildSlots(){
+  $('slots').innerHTML = ORDER.map(cat=>`
+    <div class="slot" id="slot-${cat}">
+      <label for="sel-${cat}"><i class="bi bi-${ICON[cat]} me-1 text-info"></i>${CAT[cat]}${REQUIRED.includes(cat)?'':' <span class="text-secondary fw-normal">(opcional)</span>'}</label>
+      <select class="form-select" id="sel-${cat}">
+        <option value="">— Seleccionar —</option>
+        ${DB[cat].map(i=>`<option value="${i.id}">${i.name}</option>`).join('')}
+      </select>
+      <div class="slotrow"><div class="pic thumb d-none" id="pic-${cat}"></div><div class="spec" id="spec-${cat}"></div></div>
+    </div>`).join('');
+  ORDER.forEach(cat=>$('sel-'+cat).addEventListener('change',()=>{
+    const item = DB[cat].find(i=>i.id===$('sel-'+cat).value);
+    sel[cat] = item || null;
+    $('spec-'+cat).textContent = item ? SPEC[cat](item) : '';
+    $('slot-'+cat).classList.toggle('filled', !!item);
+    const pic = $('pic-'+cat);
+    if(item){ pic.classList.remove('d-none'); pic.innerHTML = visual(cat); loadImg(item, cat, pic); }
+    else pic.classList.add('d-none');
+  }));
+}
+function setSelection(ids){
+  ORDER.forEach(cat=>{
+    $('sel-'+cat).value = ids[cat]||'';
+    $('sel-'+cat).dispatchEvent(new Event('change'));
+  });
+}
+
+const ICONS = {ok:'check-circle-fill', warn:'exclamation-triangle-fill', err:'x-octagon-fill', skip:'dash-circle'};
+
+function verify(){
+  const missing = REQUIRED.filter(c=>!sel[c]).map(c=>CAT[c]);
+  if(missing.length){
+    $('results').innerHTML = `<div class="seal warn"><div class="icon"><i class="bi bi-exclamation-circle"></i></div><div><h3 class="h5 mb-1">Faltan componentes</h3><p class="mb-0">Selecciona: ${missing.join(', ')}.</p></div></div>`;
+    return;
+  }
+  const {checks, peak, need} = runChecks(sel);
+  const errs = checks.filter(c=>c.status==='err'), warns = checks.filter(c=>c.status==='warn');
+  const kind = errs.length ? 'err' : warns.length ? 'warn' : 'ok';
+  const head = {
+    ok:['patch-check-fill','¡Compatible!',`El socket ${sel.cpu.socket} del procesador coincide con la placa madre, que usa memoria ${sel.mb.ram} y es compatible con el módulo ${sel.ram.type} elegido. Todas las pruebas se cumplen: estas piezas funcionan juntas.`],
+    warn:['shield-exclamation','Compatible, con avisos',`Las piezas encajan físicamente, pero hay ${warns.length} punto(s) a revisar antes de comprar.`],
+    err:['shield-x','Incompatible',`Se encontraron ${errs.length} conflicto(s) técnico(s). Revisa el detalle y las alternativas sugeridas.`]
+  }[kind];
+
+  let html = `<div class="seal ${kind}"><div class="icon"><i class="bi bi-${head[0]}"></i></div><div><h3 class="h4 mb-1">${head[1]}</h3><p class="mb-0">${head[2]}</p></div></div>`;
+
+  html += `<h4 class="h6 mt-4 mb-1">Pruebas realizadas</h4><div>` + checks.map(c=>
+    `<div class="check ${c.status}"><i class="bi bi-${ICONS[c.status]}"></i><div><div class="t">${c.title}</div><div class="d">${c.text}</div></div></div>`).join('') + `</div>`;
+
+  if(sel.psu){
+    const pct = Math.min(100, Math.round(peak/sel.psu.watts*100));
+    const color = pct>90?'var(--err)':pct>77?'var(--warn)':'var(--ok)';
+    html += `<h4 class="h6 mt-4 mb-2">Carga estimada de la fuente: ${pct} %</h4>
+      <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:${pct}%;background:${color}"></div></div>
+      <div class="small text-secondary mt-1">${peak} W de ${sel.psu.watts} W. Lo ideal es quedar por debajo del 77 % (${need} W recomendados).</div>`;
+  }
+
+  const recs = recommend(sel, checks);
+  if(recs.length){
+    html += `<h4 class="h5 mt-4 mb-3"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Alternativas compatibles</h4><div class="row g-3">` + recs.map(r=>`
+      <div class="col-md-6"><article class="rec">
+        <div class="vis"><div class="pic wide" data-img="${r.to.id}" data-cat="${r.cat}">${visual(r.cat)}</div></div>
+        <div class="body">
+          <div class="swap">${CAT[r.cat]}: <s>${r.from.name}</s></div>
+          <h5 class="h6 mb-0 mt-1">${r.to.name}</h5>
+          <div class="small text-info">${SPEC[r.cat](r.to)}</div>
+          <p class="why mb-0"><strong>Corrige «${r.fixes}».</strong> ${r.why}</p>
+        </div></article></div>`).join('') + `</div>`;
+  }
+  if(kind!=='err') html += quoteHTML(sel);   // solo se cotiza una PC que funciona
+  $('results').innerHTML = html;
+  hydrate($('results'));
+  if($('storeSel')){ updateStoreLinks(); $('storeSel').addEventListener('change',e=>{ store = e.target.value; updateStoreLinks(); }); }
+  $('results').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+/* ---------- Fotos reales: se buscan en Wikimedia Commons (API pública con CORS) ----------
+   Se intenta con el nombre completo, luego con marca + modelo y por último con un término
+   genérico de la categoría. Si no hay conexión o resultados, se queda el dibujo SVG. */
+const imgCache = new Map();
+const GENERIC = {mb:'computer motherboard', cpu:'CPU processor', ram:'DDR memory module', psu:'ATX power supply unit', case:'computer case tower', gpu:'graphics card'};
+const cleanName = n => n.replace(/\(.*?\)/g,'').replace(/\d+\s?W\b.*$/,'').trim();
+async function commons(q){
+  const url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=6&gsrlimit=8'
+    + '&gsrsearch=' + encodeURIComponent(q+' filetype:bitmap') + '&prop=imageinfo&iiprop=url|mime&iiurlwidth=480';
+  const j = await (await fetch(url)).json();
+  const pages = Object.values((j.query||{}).pages||{}).sort((a,b)=>a.index-b.index);
+  const p = pages.find(p=>{ const i=(p.imageinfo||[])[0]; return i && /jpe?g|png/.test(i.mime) && !/logo|diagram|chart|icon|screenshot|wallpaper/i.test(p.title); });
+  const i = p && p.imageinfo[0];
+  return i ? {src:i.thumburl||i.url, page:i.descriptionurl} : null;
+}
+function getImg(item, cat){
+  if(!imgCache.has(item.id)) imgCache.set(item.id, (async()=>{
+    const base = cleanName(item.name);
+    for(const q of [base, base.split(' ').slice(0,3).join(' '), GENERIC[cat]]){
+      try{ const r = await commons(q); if(r) return r; }catch(e){}
+    }
+    return null;
+  })());
+  return imgCache.get(item.id);
+}
+async function loadImg(item, cat, el){
+  const r = await getImg(item, cat);
+  if(!r) return;
+  const img = new Image();
+  img.alt = item.name; img.loading = 'lazy';
+  img.onload = ()=>{
+    el.innerHTML = ''; el.appendChild(img);
+    if(el.classList.contains('wide')) el.insertAdjacentHTML('beforeend', `<a class="credit-badge" href="${r.page}" target="_blank" rel="noopener">Wikimedia Commons</a>`);
+  };
+  img.src = r.src;   // si falla la carga, se conserva el SVG
+}
+function hydrate(root){
+  root.querySelectorAll('[data-img]').forEach(el=>{
+    const cat = el.dataset.cat;
+    loadImg(DB[cat].find(i=>i.id===el.dataset.img), cat, el);
+  });
+}
+
+/* ---------- Cotización en tiendas virtuales ---------- */
+const STORES = {
+  pcpp:  {name:'PCPartPicker (compara precios de varias tiendas)', url:q=>`https://pcpartpicker.com/search/?q=${q}`},
+  amazon:{name:'Amazon', url:q=>`https://www.amazon.com/s?k=${q}`},
+  newegg:{name:'Newegg', url:q=>`https://www.newegg.com/p/pl?d=${q}`},
+  google:{name:'Google Shopping', url:q=>`https://www.google.com/search?tbm=shop&q=${q}`}
+};
+let store = 'pcpp';
+function quoteHTML(s){
+  const rows = ORDER.filter(c=>s[c]);
+  return `<h4 class="h5 mt-4 mb-2"><i class="bi bi-cart3 text-info me-2"></i>Cotiza esta PC</h4>
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+      <label class="small text-secondary" for="storeSel">Tienda:</label>
+      <select id="storeSel" class="form-select form-select-sm w-auto">${Object.entries(STORES).map(([k,v])=>`<option value="${k}"${k===store?' selected':''}>${v.name}</option>`).join('')}</select>
+      <a class="btn btn-verify btn-sm ms-auto" href="https://pcpartpicker.com/list/" target="_blank" rel="noopener"><i class="bi bi-list-check me-1"></i>Armar la lista en PCPartPicker</a>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-2"><tbody>${rows.map(c=>`
+      <tr><td style="width:84px"><div class="pic thumb" data-img="${s[c].id}" data-cat="${c}">${visual(c)}</div></td>
+      <td><div class="small text-secondary">${CAT[c]}</div>${s[c].name}</td>
+      <td class="text-end"><a class="btn btn-sm btn-outline-info store-link" data-q="${encodeURIComponent(cleanName(s[c].name))}" target="_blank" rel="noopener" href="#">Ver precio <i class="bi bi-box-arrow-up-right"></i></a></td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="small text-secondary mb-0">Los precios y la disponibilidad cambian a diario. Antes de comprar, revisa si la tienda envía a tu país y los impuestos de importación.</p>`;
+}
+function updateStoreLinks(){
+  document.querySelectorAll('.store-link').forEach(a=>{ a.href = STORES[store].url(a.dataset.q); });
+}
+
+/* ---------- Ejemplos ---------- */
+const EXAMPLES = [
+  {id:'perfect', ok:true, label:'⭐ La PC perfecta (sin límites)', sel:{mb:'mb8',cpu:'c7',ram:'r4',psu:'p4',case:'k1',gpu:'g3'},
+   desc:'Lo mejor del catálogo: Z890 + Core Ultra 7 + 32 GB DDR5-6000 + RTX 4080 Super + fuente de 850 W con 12VHPWR. Pasa todas las pruebas con margen de potencia.'},
+  {id:'am5', ok:true, label:'Gaming equilibrada AM5', sel:{mb:'mb2',cpu:'c2',ram:'r3',psu:'p3',case:'k2',gpu:'g2'},
+   desc:'Ryzen 5 7600 en placa Micro-ATX con DDR5 y RTX 4070 Super. Buena relación precio-rendimiento y camino de actualización.'},
+  {id:'x3d', ok:true, label:'Gaming AM5 con 3D V-Cache', sel:{mb:'mb1',cpu:'c1',ram:'r4',psu:'p4',case:'k1',gpu:'g2'},
+   desc:'Ryzen 7 7800X3D en placa ATX con DDR5-6000: muy eficiente y excelente para juegos.'},
+  {id:'budget', ok:true, label:'Económica AM4 (DDR4)', sel:{mb:'mb3',cpu:'c4',ram:'r1',psu:'p2',case:'k1',gpu:'g1'},
+   desc:'Ryzen 5 5600 con DDR4 y RTX 4060: plataforma madura y barata.'},
+  {id:'itx', ok:true, label:'Compacta Mini-ITX', sel:{mb:'mb7',cpu:'c5',ram:'r3',psu:'p5',case:'k3',gpu:'g2'},
+   desc:'Todo en formato pequeño: placa Mini-ITX, gabinete NR200 y fuente SFX, que es el formato que ese gabinete exige.'},
+  {id:'work', ok:true, label:'Estación de trabajo Intel', sel:{mb:'mb5',cpu:'c6',ram:'r4',psu:'p4',case:'k1',gpu:'g2'},
+   desc:'Core i7-14700K con DDR5 en placa Z790: muchos núcleos para edición, compilación y renderizado.'},
+  {id:'bad1', ok:false, label:'Conflictos múltiples', sel:{mb:'mb3',cpu:'c6',ram:'r4',psu:'p1',case:'k3',gpu:'g3'},
+   desc:'CPU Intel en placa AM4, RAM DDR5 en placa DDR4, placa ATX en gabinete ITX y fuente corta.'},
+  {id:'bad2', ok:false, label:'RAM de portátil y fuente corta', sel:{mb:'mb6',cpu:'c5',ram:'r5',psu:'p1',case:'k2',gpu:'g2'},
+   desc:'Módulo SO-DIMM en placa de escritorio y fuente de 450 W para un sistema que consume más.'}
+];
+function buildExamples(){
+  const opt = e=>`<option value="${e.id}">${e.label}</option>`;
+  $('demoSel').innerHTML = `<optgroup label="Configuraciones válidas">${EXAMPLES.filter(e=>e.ok).map(opt).join('')}</optgroup>`
+    + `<optgroup label="Configuraciones con errores">${EXAMPLES.filter(e=>!e.ok).map(opt).join('')}</optgroup>`;
+  const show = ()=>{ $('demoDesc').textContent = EXAMPLES.find(e=>e.id===$('demoSel').value).desc; };
+  $('demoSel').addEventListener('change', show); show();
+}
+
+/* Eventos */
+buildSlots();
+$('btnVerify').addEventListener('click', verify);
+$('btnClear').addEventListener('click', ()=>{
+  setSelection({});
+  $('results').innerHTML = '<div class="empty"><i class="bi bi-motherboard"></i><p class="mt-2 mb-0">Selecciona al menos placa madre, procesador y RAM, y pulsa verificar.</p></div>';
+});
+buildExamples();
+$('btnDemo').addEventListener('click', ()=>{
+  setSelection(EXAMPLES.find(e=>e.id===$('demoSel').value).sel);
+  verify();
+});
+</script>
+</body>
+</html>
